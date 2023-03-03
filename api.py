@@ -1,13 +1,13 @@
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
-from typing import List
+from pydantic import ValidationError
 import shutil
 import os
-from services import get_lat_lon
+from services import get_lat_lon, rename_img, save_img
 import aiofiles
 from fastapi.responses import FileResponse
 
 
-from schemas import UploadDate, GetProject, GetListCoords
+from schemas import UploadDate, EditImg
 from models import User, Project, Img
 
 photo_router = APIRouter()
@@ -16,7 +16,7 @@ photo_router = APIRouter()
 
 #запись пользователей
 @photo_router.post("/user_recording", response_model=User)
-async def upload_user(user: int = Form(...)):
+async def upload_user(user: str = Form(...)):
 
     user_list = await User.objects.filter(user_id=user).all()
 
@@ -28,29 +28,20 @@ async def upload_user(user: int = Form(...)):
 
 
 #Запись данных о проекте в БД
-@photo_router.post("/data_recording")
+@photo_router.post("/project_recording", response_model=Project)
 async def upload_data(
-                      user: int = Form(...),
+                      user: str = Form(...),
                       project_name: str = Form(...),
                       description: str = Form(default=None)
                       ):
 
     os.makedirs(f"img/{user}/{project_name}")
-    #file_name = f'img/{img.filename}'
     file_name = f'img/{user}/{project_name}'
 
     info = Project(user=user, project_name=project_name, description=description, path=file_name)
 
     #return {'headers': img.headers, 'size': img.size, 'coords':coords, 'info':info}
     return await Project.objects.create(**info.dict())
-#test
-@photo_router.post("/test")
-async def test( project: int = Form(...),
-                img: UploadFile = File(...)
-                      ):
-    project_name = await Project.objects.filter(id_project=project).all()
-
-    return (project_name[0].dict().get('project_name'))
 
 
 #Запись изображения
@@ -59,29 +50,47 @@ async def upload_img(project_id: int = Form(...),
                       img: UploadFile = File(...)
                       ):
 
-    project_data = await Project.objects.filter(id_project=project_id).all()
-    user = project_data[0].dict().get('user').get('user_id')
-    project_name = project_data[0].dict().get('project_name')
+    if 'image' in img.content_type:
+
+        project_data = await Project.objects.filter(id_project=project_id).all()
+        user = project_data[0].user.user_id
+        project_name = project_data[0].project_name
 
 
-    file_name = f'img/{user}/{project_name}/{img.filename}'
+        file_name = f'img/{user}/{project_name}/{img.filename}'
 
-    # with open(file_name, "wb") as buffer:
-    #     shutil.copyfileobj(img.file, buffer)
+        # with open(file_name, "wb") as buffer:
+        #     shutil.copyfileobj(img.file, buffer)
 
-    # асинхронный вариант записи на диск
-    async with aiofiles.open(file_name, "wb") as buffer:
-        data = await img.read()
-        await buffer.write(data)
+        # асинхронный вариант записи на диск
+        async with aiofiles.open(file_name, "wb") as buffer:
+            data = await img.read()
+            await buffer.write(data)
 
-    lat_lon = get_lat_lon(file_name)
+        #получение координат
+        lat_lon = get_lat_lon(file_name, img.filename)
 
-    #переименование файла в координаты
-    os.rename(file_name, f'img/{user}/{project_name}/{lat_lon}.JPG')
+        # #переименование файла в координаты
+        # rename_img(img, file_name, user, project_name, lat_lon)
+        #
+        # info = Img(project=project_id, coords=lat_lon)
 
-    info = Img(project=project_id, coords=lat_lon)
+        #return await Img.objects.create(**info.dict())
 
-    return await Img.objects.create(**info.dict())
+
+        #сохранение данных в БД
+        await save_img(project_id, lat_lon, img)
+
+        #получение id изображения для переименования файла
+        img_id = await Img.objects.get(coords=lat_lon)
+        img_id = img_id.id
+        # переименование файла в id изображения(img_id)
+        rename_img(img, file_name, user, project_name, img_id)
+
+        return {f'Загружен файл: {img.filename}'}
+
+    else:
+        raise HTTPException(status_code=500, detail='Загрузите изображение')
 
 
 #загрузка нескольких фоток
@@ -102,29 +111,89 @@ async def upload_img(project_id: int = Form(...),
 #     return info
 
 
-#возврат данных по проекту из БД
+#возврат данных по проектам пользователя из БД втч данных по координатам и их id
 @photo_router.get("/projects/{user_pk}", response_model=User)
-async def get_projects(user_pk: int):
+async def get_projects(user_pk: str):
 
-    return await User.objects.select_related('projects').get(pk=user_pk)
+    user_list = await User.objects.filter(user_id=user_pk).all()
+
+    if user_list:
+        return await User.objects.select_all('projects').get(pk=user_pk)
+    else:
+        raise HTTPException(status_code=500, detail='Такого пользователя нет')
+
+
 
 # возврат координат проекта
-# @photo_router.get("/coords/{project_pk}", response_model=Project)
-# async def get_coords(project_pk: int):
+# @photo_router.get("/coords_list/{project_pk}", response_model=List[GetListCoords])
+# async def get_list_coords(project_pk: int):
 #
-#     return await Project.objects.select_related('imgs').get(pk=project_pk)
+#     coord_list = await Img.objects.filter(project=project_pk).all()
+#     return coord_list
 
-# возврат координат проекта
-@photo_router.get("/coords_list/{project_pk}", response_model=List[GetListCoords])
-async def get_list_coords(project_pk: int):
-
-    coord_list = await Img.objects.filter(project=project_pk).all()
-    return coord_list
 
 #возврат файла
-@photo_router.get("/img_response/{file_name}")
-async def get_img(file_name: str):
-    return FileResponse(file_name)
+@photo_router.get("/img_response/{img_id}")
+async def get_img(img_id: int):
 
-#file_name = 'img\GSAU1287.JPG'
+    try:
+
+        img_data = await Img.objects.select_related(Img.project).get(id=img_id)
+        type_img = img_data.type_img
+        patch = img_data.project.path
+
+        full_path = f'{patch}/{img_id}.{type_img}'
+
+        return FileResponse(full_path)
+
+    except Exception as ex:
+
+        raise HTTPException(status_code=500, detail=f'{ex}')
+
+
+#удаление прокта и всех данных из ос
+@photo_router.delete("/project_delete/{project_pk}")
+async def del_project(project_pk: int):
+
+    project_list = await Project.objects.filter(id_project=project_pk).all()
+
+    if project_list:
+        path = project_list[0].path
+        shutil.rmtree(path)
+
+        await Img.objects.delete(project=project_pk)
+        await Project.objects.delete(id_project=project_pk)
+        return {f'Проект {project_pk} удален'}
+    else:
+        raise HTTPException(status_code=500, detail='Такого проекта нет')
+
+
+#удаление изображения из проекта
+@photo_router.delete("/img_delete/{img_id}")
+async def del_img(img_id: int): #os.remove()
+
+    img_data = await Img.objects.select_related(Img.project).get(id=img_id)
+
+    if img_data:
+
+        path = img_data.project.path
+        img_type = img_data.type_img
+
+        #удаление файла
+        os.remove(f'{path}/{img_id}.{img_type}')
+        #удаление из БД
+        await Img.objects.delete(project=img_id)
+        return {f'Изображение {img_id} удалено'}
+
+
+    else:
+        raise HTTPException(status_code=500, detail='Нет такого изображения')
+
+#редактирование координат изображения
+@photo_router.post("/edit_coord")
+async def edit_coord(edit_coord: EditImg):
+
+    return await Img.objects.filter(id=edit_coord.img_id).update(coords=edit_coord.coord)
+
+
 

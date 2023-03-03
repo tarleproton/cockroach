@@ -1,8 +1,8 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from typing import List
 import datetime
+import re
 
-#модель загрузки данных в БД
 class UploadDate(BaseModel):
 
     #identification: List[str] = None #аргумент может отсутствовать
@@ -16,12 +16,23 @@ class UploadDate(BaseModel):
     create_date: datetime.datetime = None
     user: int
 
-#модель получения данных о проетах пользователя
-#использовать если хочется сократить список полей данных на выход
-#нужно пофиксить , данные не корректны
-class GetProject(BaseModel):
-    #photo: Coords
-    user: UploadDate
+class EditImg(BaseModel):
+    img_id: int
+    coord: str
 
-class GetListCoords(BaseModel):
-    coords: str
+    @validator('coord')
+    def coord_should_be(cls, c: str):
+        #проверка корректности координат
+        #если хоть одна из координат не соответствует \d{2}\.\d+ (пример 54.32256), вернем ошибку
+
+        coords_list = re.findall(r"\d+\.\d+", c)
+        if len(coords_list) == 2:
+            for coord in coords_list:
+                if not re.fullmatch(r"\d{2}\.\d+", coord):
+                    raise ValueError('Формат координаты не верен')
+
+            return f'{[float(coords_list[0]), float(coords_list[1])]}'
+
+        raise ValueError('Формат координаты не верен')
+
+

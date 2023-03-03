@@ -1,7 +1,6 @@
 import ormar
 from db import metadata, database
 import datetime
-from typing import List
 from typing import Optional
 
 class User(ormar.Model):
@@ -10,7 +9,7 @@ class User(ormar.Model):
         metadata = metadata
         database = database
 
-    user_id: int = ormar.Integer(primary_key=True)
+    user_id: str = ormar.String(primary_key=True, max_length=150)
 
 
 class Project(ormar.Model):
@@ -20,7 +19,7 @@ class Project(ormar.Model):
         database = database
 
     id_project: int = ormar.Integer(primary_key=True)
-    user: int = ormar.ForeignKey(User)
+    user: Optional[User] = ormar.ForeignKey(User)
     project_name:str =ormar.String(max_length=100)
     description: str = ormar.String(max_length=500, nullable=True)
     path: str = ormar.String(max_length=1000, nullable=True)
@@ -35,8 +34,9 @@ class Img(ormar.Model):
         database = database
 
     id: int = ormar.Integer(primary_key=True)
-    project: int = ormar.ForeignKey(Project)
+    project: Optional[Project] = ormar.ForeignKey(Project)
     coords: str = ormar.String(max_length=100)
+    type_img: str = ormar.String(max_length=50)
 
 
 
