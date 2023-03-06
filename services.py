@@ -26,20 +26,21 @@ def get_lat_lon(file_name: str,
 
     except:
         img_lat_lon.close()
-        os.remove(file_name)
-        raise HTTPException(status_code=500, detail=f'В изображении {img_name} нет координат, загрузите другое')
+        return None
+        #os.remove(file_name)
+        #raise HTTPException(status_code=500, detail=f'Изображении {file_name} не содержит координат')
 
 
-#переименование файла в координаты
+#переименование файла в id
 def rename_img(img,
                file_name: str,
                user: str,
                project_name: str,
-               lat_lon
+               img_id
                ):
     img_type = img.content_type
     img_type = img_type.replace('image/', '')
-    os.rename(file_name, f'img/{user}/{project_name}/{lat_lon}.{img_type}')
+    os.rename(file_name, f'img/{user}/{project_name}/{img_id}.{img_type}')
 
 
 #сохранение данных в БД
