@@ -2,17 +2,15 @@ from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from pydantic import ValidationError
 import shutil
 import os
-from services import get_lat_lon, rename_img, save_img_data, working_with_image
+from services import get_lat_lon, rename_img, working_with_image
 import aiofiles
 from fastapi.responses import FileResponse
 
-from schemas import  EditImg
+from schemas import EditImg, GetListProj
 from models import User, Project, Img
 import uuid
 
 photo_router = APIRouter()
-
-
 
 #запись пользователей
 @photo_router.post("/user_recording", response_model=User)
@@ -100,7 +98,7 @@ async def upload_img(project_id: int = Form(...),
             #Если у изображения нет координат
             lat_lon = str(uuid.uuid1())
 
-            img_id = await aaaaa(project_id, lat_lon, img_type)
+            img_id = await working_with_image(project_id, lat_lon, img_type)
 
             # переименование файла в id изображения(img_id)
             rename_img(img_type, project_data_.path, img_id, img.filename)
@@ -134,16 +132,43 @@ async def upload_img(project_id: int = Form(...),
 #     return info
 
 
-#возврат данных по проектам пользователя из БД втч данных по координатам и их id
-@photo_router.get("/projects/{user_pk}", response_model=User)
+# #возврат данных по проектам пользователя из БД втч данных по координатам и их id
+# @photo_router.get("/projects/{user_pk}", response_model=User)
+# async def get_projects(user_pk: str):
+#
+#     user_list = await User.objects.filter(user_id=user_pk).all()
+#
+#     if user_list:
+#         return await User.objects.select_all('projects').get(pk=user_pk)
+#     else:
+#         raise HTTPException(status_code=500, detail='Такого пользователя нет')
+
+
+#возврат данных по проектам пользователя(данные урезаны по схеме GetListProj)
+@photo_router.get("/projects_data/{user_pk}", response_model=list[GetListProj])
 async def get_projects(user_pk: str):
 
     user_list = await User.objects.filter(user_id=user_pk).all()
 
     if user_list:
-        return await User.objects.select_all('projects').get(pk=user_pk)
+
+        return await Project.objects.filter(user=user_pk).all()
     else:
         raise HTTPException(status_code=500, detail='Такого пользователя нет')
+
+
+# возврат данных по проекту
+@photo_router.get("/project_data/{project_pk}")
+async def get_project(project_pk: int):
+
+    project_list = await Project.objects.filter(id_project=project_pk).all()
+
+    if project_list:
+
+        return await Project.objects.select_related('imgs').get(id_project=project_pk)
+
+    else:
+        raise HTTPException(status_code=500, detail='Такого проекта нет')
 
 
 
@@ -156,22 +181,46 @@ async def get_projects(user_pk: str):
 
 
 #возврат файла
+#для возврата превью напишите , что угодно в preview
 @photo_router.get("/img_response/{img_id}")
-async def get_img(img_id: int):
-
+async def get_img(img_id: int,
+                  preview: str = None):
     try:
 
         img_data = await Img.objects.select_related(Img.project).get(id=img_id)
         type_img = img_data.type_img
         patch = img_data.project.path
 
-        full_path = f'{patch}/{img_id}.{type_img}'
+        if not preview:
+
+            full_path = f'{patch}/{img_id}.{type_img}'
+
+        else:
+
+            full_path = f'{patch}/{img_id}_preview.{type_img}'
 
         return FileResponse(full_path)
-
     except Exception as ex:
-
         raise HTTPException(status_code=500, detail=f'{ex}')
+
+
+
+# @photo_router.get("/img_response/{img_id}")
+# async def get_img(img_id: int ):
+#
+#     try:
+#
+#         img_data = await Img.objects.select_related(Img.project).get(id=img_id)
+#         type_img = img_data.type_img
+#         patch = img_data.project.path
+#
+#         full_path = f'{patch}/{img_id}.{type_img}'
+#
+#         return FileResponse(full_path)
+#
+#     except Exception as ex:
+#
+#         raise HTTPException(status_code=500, detail=f'{ex}')
 
 
 #удаление прокта и всех данных из ос
@@ -204,6 +253,7 @@ async def del_img(img_id: int): #os.remove()
 
         #удаление файла
         os.remove(f'{path}/{img_id}.{img_type}')
+        os.remove(f'{path}/{img_id}_preview.{img_type}')
         #удаление из БД
         await Img.objects.delete(project=img_id)
         return {f'Изображение {img_id} удалено'}
@@ -217,6 +267,8 @@ async def del_img(img_id: int): #os.remove()
 async def edit_coord(edit_coord: EditImg):
 
     return await Img.objects.filter(id=edit_coord.img_id).update(coords=edit_coord.coord)
+
+
 
 
 

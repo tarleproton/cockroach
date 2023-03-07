@@ -23,4 +23,7 @@ class EditImg(BaseModel):
 
         raise ValueError('Формат координаты не верен')
 
+class GetListProj(BaseModel):
+    id_project: int
+    project_name: str
 
