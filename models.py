@@ -39,7 +39,6 @@ class Img(ormar.Model):
     type_img: str = ormar.String(max_length=50)
 
 
-
 # class Photo(ormar.Model):
 #     class Meta(MainMeta):
 #         pass

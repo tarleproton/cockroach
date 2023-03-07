@@ -1,20 +1,8 @@
 from pydantic import BaseModel, validator
-from typing import List
-import datetime
 import re
 
-class UploadDate(BaseModel):
-
-    #identification: List[str] = None #аргумент может отсутствовать
-    #coords: List[str]
-
-    user_id:int
-    project: str
-    description: str = None
-    layer: str
-    path: str
-    create_date: datetime.datetime = None
-    user: int
+class Path(BaseModel):
+    path:str
 
 class EditImg(BaseModel):
     img_id: int

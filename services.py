@@ -12,45 +12,69 @@ def decimal_coords(coords, ref):
     return float(decimal_degrees)
 
 
-def get_lat_lon(file_name: str,
-                img_name: str):
+async def get_lat_lon(path: str,
+                img):
     # получение данных координат
-    img_lat_lon = Image.open(file_name)
+    img_name = img.filename
+    img_lat_lon = Image.open(f'{path}/{img_name}')
+
     try:
         exif = {ExifTags.TAGS[k]: v for k, v in img_lat_lon._getexif().items() if k in ExifTags.TAGS}
         lat_lon = str([decimal_coords(exif['GPSInfo'][2],
                                  exif['GPSInfo'][1]),
                   decimal_coords(exif['GPSInfo'][4],
                                  exif['GPSInfo'][3])])
-        return lat_lon
+
+
+        img_in_bd = await Img.objects.filter(coords=lat_lon).all()
+
+        if not img_in_bd:
+
+            return lat_lon
+        else:
+            img_lat_lon.close()
+            os.remove(f'{path}/{img_name}')
+            return 'Изображении с такими координатами уже существует'
 
     except:
-        img_lat_lon.close()
+
         return None
-        #os.remove(file_name)
-        #raise HTTPException(status_code=500, detail=f'Изображении {file_name} не содержит координат')
+
+    finally:
+        try:
+            img_lat_lon.thumbnail((64, 64))
+            img_lat_lon.save(f'{path}/{img.filename}_preview', "JPEG")
+            img_lat_lon.close()
+        except:
+            pass
+
 
 
 #переименование файла в id
-def rename_img(img,
-               file_name: str,
-               user: str,
-               project_name: str,
-               img_id
+def rename_img(img_type,
+               path: str,
+               img_id: int,
+               img_name: str,
                ):
-    img_type = img.content_type
-    img_type = img_type.replace('image/', '')
-    os.rename(file_name, f'img/{user}/{project_name}/{img_id}.{img_type}')
+
+    os.rename(f'{path}/{img_name}', f'{path}/{img_id}.{img_type}')
 
 
 #сохранение данных в БД
-async def save_img(project_id: int,
-             lat_lon,
-             img):
-
-    img_type = img.content_type
-    img_type = img_type.replace('image/', '')
+async def save_img_data(project_id: int,
+             lat_lon: str,
+             img_type: str):
 
     info = Img(project=project_id, coords=lat_lon, type_img=img_type)
     await Img.objects.create(**info.dict())
+
+
+async def working_with_image(project_id, lat_lon, img_type):
+    # сохранение данных в БД
+    await save_img_data(project_id, lat_lon, img_type)
+
+    # получение id изображения для переименования файла
+    img_id = await Img.objects.get(coords=lat_lon)
+    img_id = img_id.id
+    return img_id
 

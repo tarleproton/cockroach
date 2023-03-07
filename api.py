@@ -2,12 +2,11 @@ from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from pydantic import ValidationError
 import shutil
 import os
-from services import get_lat_lon, rename_img, save_img
+from services import get_lat_lon, rename_img, save_img_data, working_with_image
 import aiofiles
 from fastapi.responses import FileResponse
 
-
-from schemas import UploadDate, EditImg
+from schemas import  EditImg
 from models import User, Project, Img
 import uuid
 
@@ -45,68 +44,71 @@ async def upload_data(
 
         info = Project(user=user, project_name=project_name, description=description, path=file_name)
 
-        #return {'headers': img.headers, 'size': img.size, 'coords':coords, 'info':info}
         return await Project.objects.create(**info.dict())
 
     else:
         raise HTTPException(status_code=500, detail='Пользователь не существует')
 
 
-#Запись изображения
+# #Запись изображения
 @photo_router.post("/img_recording")
 async def upload_img(project_id: int = Form(...),
                       img: UploadFile = File(...)
                       ):
+    img_type = img.content_type
 
-    if 'image' in img.content_type:
+    if 'image' in img_type:
 
-        project_data = await Project.objects.filter(id_project=project_id).all()
-        user = project_data[0].user.user_id
-        project_name = project_data[0].project_name
-
-
-        file_name = f'img/{user}/{project_name}/{img.filename}'
-
-        # with open(file_name, "wb") as buffer:
-        #     shutil.copyfileobj(img.file, buffer)
+        img_type = img_type.replace('image/', '')
+        project_data_ = await Project.objects.get(id_project=project_id)
 
         # асинхронный вариант записи на диск
-        async with aiofiles.open(file_name, "wb") as buffer:
+        async with aiofiles.open(f'{project_data_.path}/{img.filename}', "wb") as buffer:
             data = await img.read()
             await buffer.write(data)
 
         #получение координат
-        lat_lon = get_lat_lon(file_name, img.filename)
+        #и сохранение превью
 
-        # #переименование файла в координаты
-        # rename_img(img, file_name, user, project_name, lat_lon)
-        #
-        # info = Img(project=project_id, coords=lat_lon)
+        lat_lon = await get_lat_lon(project_data_.path, img)
 
-        #return await Img.objects.create(**info.dict())
+        if lat_lon == 'Изображении с такими координатами уже существует':
+            raise HTTPException(status_code=500, detail='Изображении с такими координатами уже существует')
 
-        if lat_lon != None:
-            # сохранение данных в БД
-            await save_img(project_id, lat_lon, img)
+        elif lat_lon != None:
 
-            #получение id изображения для переименования файла
+            img_id = await working_with_image(project_id, lat_lon, img_type)
+
+            # получение id изображения для переименования файла
             img_id = await Img.objects.get(coords=lat_lon)
             img_id = img_id.id
+
             # переименование файла в id изображения(img_id)
-            rename_img(img, file_name, user, project_name, img_id)
+            rename_img(img_type, project_data_.path, img_id, img.filename)
+
+            # переименование файла превью
+            rename_img(img_type, project_data_.path, str(img_id) + '_preview', img.filename + '_preview')
+
+            #переименование файла превью
+            # file_preview_name = file_name.replace(img.filename, img.filename + '_preview')
+            # rename_img(img, file_preview_name, user, project_name, str(img_id) + '_preview')
 
             return {f'Загружен файл: {img_id}'}
+
+
         else:
             #Если у изображения нет координат
             lat_lon = str(uuid.uuid1())
-            await save_img(project_id, lat_lon, img)
-            img_id = await Img.objects.get(coords=lat_lon)
-            img_id = img_id.id
+
+            img_id = await aaaaa(project_id, lat_lon, img_type)
+
             # переименование файла в id изображения(img_id)
-            rename_img(img, file_name, user, project_name, img_id)
+            rename_img(img_type, project_data_.path, img_id, img.filename)
             await Img.objects.filter(id=img_id).update(coords='')
 
-            #return {f'Загружен файл: {img_id}, но он не имеет координат'}
+            # переименование файла превью
+            rename_img(img_type, project_data_.path, str(img_id) + '_preview', img.filename + '_preview')
+
             raise HTTPException(status_code=500, detail=f'Изображении {img_id} не содержит координат')
 
 
