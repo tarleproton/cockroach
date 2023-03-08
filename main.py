@@ -1,6 +1,14 @@
 from fastapi import FastAPI
 from api import photo_router
 from db import engine, metadata, database
+from fastapi.middleware.cors import CORSMiddleware
+
+origins = [
+    "http://localhost",
+    "http://localhost:8080",
+    "http://localhost:3000",
+    "https://view-360-two.vercel.app",
+]
 
 #uvicorn main:app   #если нужно перезагрузка при изменениях то с опцией - reload
 
@@ -12,6 +20,14 @@ app = get_application()
 
 #metadata.create_all(engine) #создание БД
 app.state.database = database
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.on_event("startup")
