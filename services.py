@@ -13,7 +13,8 @@ def decimal_coords(coords, ref):
 
 
 async def get_lat_lon(path: str,
-                img):
+                img,
+                project_id: int):
     # получение данных координат
     img_name = img.filename
     img_lat_lon = Image.open(f'{path}/{img_name}')
@@ -26,7 +27,7 @@ async def get_lat_lon(path: str,
                                  exif['GPSInfo'][3])])
 
 
-        img_in_bd = await Img.objects.filter(coords=lat_lon).all()
+        img_in_bd = await Img.objects.filter(coords=lat_lon, project=project_id).all()
 
         if not img_in_bd:
 
@@ -74,7 +75,7 @@ async def working_with_image(project_id, lat_lon, img_type):
     await save_img_data(project_id, lat_lon, img_type)
 
     # получение id изображения для переименования файла
-    img_id = await Img.objects.get(coords=lat_lon)
+    img_id = await Img.objects.get(project=project_id, coords=lat_lon)
     img_id = img_id.id
     return img_id
 

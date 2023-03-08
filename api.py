@@ -48,7 +48,7 @@ async def upload_data(
         raise HTTPException(status_code=500, detail='Пользователь не существует')
 
 
-# #Запись изображения
+# Запись изображения
 @photo_router.post("/img_recording")
 async def upload_img(project_id: int = Form(...),
                       img: UploadFile = File(...)
@@ -68,7 +68,7 @@ async def upload_img(project_id: int = Form(...),
         #получение координат
         #и сохранение превью
 
-        lat_lon = await get_lat_lon(project_data_.path, img)
+        lat_lon = await get_lat_lon(project_data_.path, img, project_id)
 
         if lat_lon == 'Изображении с такими координатами уже существует':
             raise HTTPException(status_code=500, detail='Изображении с такими координатами уже существует')
@@ -78,7 +78,7 @@ async def upload_img(project_id: int = Form(...),
             img_id = await working_with_image(project_id, lat_lon, img_type)
 
             # получение id изображения для переименования файла
-            img_id = await Img.objects.get(coords=lat_lon)
+            img_id = await Img.objects.get(coords=lat_lon, project=project_id)
             img_id = img_id.id
 
             # переименование файла в id изображения(img_id)
@@ -255,7 +255,7 @@ async def del_img(img_id: int): #os.remove()
         os.remove(f'{path}/{img_id}.{img_type}')
         os.remove(f'{path}/{img_id}_preview.{img_type}')
         #удаление из БД
-        await Img.objects.delete(project=img_id)
+        await Img.objects.delete(id=img_id)
         return {f'Изображение {img_id} удалено'}
 
 
@@ -267,6 +267,7 @@ async def del_img(img_id: int): #os.remove()
 async def edit_coord(edit_coord: EditImg):
 
     return await Img.objects.filter(id=edit_coord.img_id).update(coords=edit_coord.coord)
+
 
 
 
