@@ -30,3 +30,6 @@ class GetListProj(BaseModel):
     id_project: int
     project_name: str
 
+class GetListCoords(BaseModel):
+    coords: str
+

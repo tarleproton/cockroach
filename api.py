@@ -6,7 +6,7 @@ from services import get_lat_lon, rename_img, working_with_image
 import aiofiles
 from fastapi.responses import FileResponse
 
-from schemas import EditImg, GetListProj, SizeImg
+from schemas import EditImg, GetListProj, SizeImg, GetListCoords
 from models import User, Project, Img
 import uuid
 
@@ -175,12 +175,21 @@ async def get_project(project_pk: int):
 
 
 
-# возврат координат проекта
-# @photo_router.get("/coords_list/{project_pk}", response_model=List[GetListCoords])
-# async def get_list_coords(project_pk: int):
-#
-#     coord_list = await Img.objects.filter(project=project_pk).all()
-#     return coord_list
+#возврат координат проекта
+@photo_router.get("/coords_list/{project_pk}")
+async def get_list_coords(project_pk: int):
+
+    project_list = await Project.objects.filter(id_project=project_pk).all()
+
+    if project_list:
+
+        coords = await Img.objects.filter(project=project_pk).values()
+        coords_list = [eval(item['coords']) for item in coords]
+        sorted_coords_list = sorted(coords_list, key = lambda c: [c[1], c[0]])
+        return sorted_coords_list
+
+    else:
+        raise HTTPException(status_code=500, detail='Такого проекта нет')
 
 # возврат размера проекта
 @photo_router.get("/size_project/{project_pk}")
