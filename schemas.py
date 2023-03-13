@@ -4,6 +4,9 @@ import re
 class Path(BaseModel):
     path:str
 
+class SizeImg(BaseModel):
+    size_img:int
+
 class EditImg(BaseModel):
     img_id: int
     coord: str

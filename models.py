@@ -37,6 +37,7 @@ class Img(ormar.Model):
     project: Optional[Project] = ormar.ForeignKey(Project)
     coords: str = ormar.String(max_length=100, nullable=True)
     type_img: str = ormar.String(max_length=50)
+    size_img: int = ormar.Integer()
 
 
 # class Photo(ormar.Model):

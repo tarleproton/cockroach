@@ -6,7 +6,7 @@ from services import get_lat_lon, rename_img, working_with_image
 import aiofiles
 from fastapi.responses import FileResponse
 
-from schemas import EditImg, GetListProj
+from schemas import EditImg, GetListProj, SizeImg
 from models import User, Project, Img
 import uuid
 
@@ -65,6 +65,9 @@ async def upload_img(project_id: int = Form(...),
             data = await img.read()
             await buffer.write(data)
 
+        #запись размера файла
+        size_img = os.path.getsize(f'{project_data_.path}/{img.filename}')/1000
+
         #получение координат
         #и сохранение превью
 
@@ -75,7 +78,7 @@ async def upload_img(project_id: int = Form(...),
 
         elif lat_lon != None:
 
-            img_id = await working_with_image(project_id, lat_lon, img_type)
+            img_id = await working_with_image(project_id, lat_lon, img_type, size_img)
 
             # получение id изображения для переименования файла
             img_id = await Img.objects.get(coords=lat_lon, project=project_id)
@@ -98,7 +101,7 @@ async def upload_img(project_id: int = Form(...),
             #Если у изображения нет координат
             lat_lon = str(uuid.uuid1())
 
-            img_id = await working_with_image(project_id, lat_lon, img_type)
+            img_id = await working_with_image(project_id, lat_lon, img_type, size_img)
 
             # переименование файла в id изображения(img_id)
             rename_img(img_type, project_data_.path, img_id, img.filename)
@@ -178,6 +181,35 @@ async def get_project(project_pk: int):
 #
 #     coord_list = await Img.objects.filter(project=project_pk).all()
 #     return coord_list
+
+# возврат размера проекта
+@photo_router.get("/size_project/{project_pk}")
+async def size_project(project_pk: int):
+    project_list = await Project.objects.filter(id_project=project_pk).all()
+
+    if project_list:
+
+        return await Img.objects.filter(project=project_pk).sum('size_img')
+    else:
+        raise HTTPException(status_code=500, detail='Такого проекта нет')
+
+# размер всех проектов пользователя
+@photo_router.get("/sum_size_project/{user_pk}")
+async def sum_size_project(user_pk: str):
+
+    user_list = await User.objects.filter(user_id=user_pk).all()
+
+    if user_list:
+
+        res = await Project.objects.select_related('imgs').filter(user=user_pk).fields(['size_img'])\
+            .fields(['imgs__size_img']).values()
+
+        list_img_size = [item['imgs__size_img'] for item in res]
+
+        return sum(list_img_size)
+
+    else:
+        raise HTTPException(status_code=500, detail='Такого пользователя нет')
 
 
 #возврат файла
@@ -267,6 +299,7 @@ async def del_img(img_id: int): #os.remove()
 async def edit_coord(edit_coord: EditImg):
 
     return await Img.objects.filter(id=edit_coord.img_id).update(coords=edit_coord.coord)
+
 
 
 

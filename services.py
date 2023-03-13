@@ -64,15 +64,16 @@ def rename_img(img_type,
 #сохранение данных в БД
 async def save_img_data(project_id: int,
              lat_lon: str,
-             img_type: str):
+             img_type: str,
+             size_img:int):
 
-    info = Img(project=project_id, coords=lat_lon, type_img=img_type)
+    info = Img(project=project_id, coords=lat_lon, type_img=img_type, size_img=size_img)
     await Img.objects.create(**info.dict())
 
 
-async def working_with_image(project_id, lat_lon, img_type):
+async def working_with_image(project_id, lat_lon, img_type, size_img):
     # сохранение данных в БД
-    await save_img_data(project_id, lat_lon, img_type)
+    await save_img_data(project_id, lat_lon, img_type, size_img)
 
     # получение id изображения для переименования файла
     img_id = await Img.objects.get(project=project_id, coords=lat_lon)
