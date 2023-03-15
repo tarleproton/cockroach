@@ -168,7 +168,11 @@ async def get_project(project_pk: int):
 
     if project_list:
 
-        return await Project.objects.select_related('imgs').get(id_project=project_pk)
+        data_project = await Project.objects.select_related('imgs').get(id_project=project_pk)
+        data_project = data_project.dict()
+        size_project = await Img.objects.filter(project=project_pk).sum('size_img')
+        data_project['size_project'] = size_project
+        return data_project
 
     else:
         raise HTTPException(status_code=500, detail='Такого проекта нет')
@@ -192,15 +196,15 @@ async def get_list_coords(project_pk: int):
         raise HTTPException(status_code=500, detail='Такого проекта нет')
 
 # возврат размера проекта
-@photo_router.get("/size_project/{project_pk}")
-async def size_project(project_pk: int):
-    project_list = await Project.objects.filter(id_project=project_pk).all()
-
-    if project_list:
-
-        return await Img.objects.filter(project=project_pk).sum('size_img')
-    else:
-        raise HTTPException(status_code=500, detail='Такого проекта нет')
+# @photo_router.get("/size_project/{project_pk}")
+# async def size_project(project_pk: int):
+#     project_list = await Project.objects.filter(id_project=project_pk).all()
+#
+#     if project_list:
+#
+#         return await Img.objects.filter(project=project_pk).sum('size_img')
+#     else:
+#         raise HTTPException(status_code=500, detail='Такого проекта нет')
 
 # размер всех проектов пользователя
 @photo_router.get("/sum_size_project/{user_pk}")
