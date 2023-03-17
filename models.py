@@ -38,6 +38,7 @@ class Img(ormar.Model):
     coords: str = ormar.String(max_length=100, nullable=True)
     type_img: str = ormar.String(max_length=50)
     size_img: int = ormar.Integer()
+    img_date: str = ormar.String(max_length=100, nullable=True)
 
 
 # class Photo(ormar.Model):

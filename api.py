@@ -2,13 +2,18 @@ from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from pydantic import ValidationError
 import shutil
 import os
-from services import get_lat_lon, rename_img, working_with_image
+from services import img_info, rename_img, working_with_image
 import aiofiles
 from fastapi.responses import FileResponse
 
 from schemas import EditImg, GetListProj, SizeImg, GetListCoords
 from models import User, Project, Img
 import uuid
+
+
+
+
+from PIL import Image, ExifTags
 
 photo_router = APIRouter()
 
@@ -71,14 +76,15 @@ async def upload_img(project_id: int = Form(...),
         #получение координат
         #и сохранение превью
 
-        lat_lon = await get_lat_lon(project_data_.path, img, project_id)
+        img_info_result = await img_info(project_data_.path, img, project_id)
+        lat_lon, date_time = img_info_result
 
         if lat_lon == 'Изображении с такими координатами уже существует':
             raise HTTPException(status_code=500, detail='Изображении с такими координатами уже существует')
 
         elif lat_lon != None:
 
-            img_id = await working_with_image(project_id, lat_lon, img_type, size_img)
+            img_id = await working_with_image(project_id, lat_lon, img_type, size_img, date_time)
 
             # получение id изображения для переименования файла
             img_id = await Img.objects.get(coords=lat_lon, project=project_id)
@@ -101,7 +107,7 @@ async def upload_img(project_id: int = Form(...),
             #Если у изображения нет координат
             lat_lon = str(uuid.uuid1())
 
-            img_id = await working_with_image(project_id, lat_lon, img_type, size_img)
+            img_id = await working_with_image(project_id, lat_lon, img_type, size_img, date_time)
 
             # переименование файла в id изображения(img_id)
             rename_img(img_type, project_data_.path, img_id, img.filename)
@@ -170,6 +176,7 @@ async def get_project(project_pk: int):
 
         data_project = await Project.objects.select_related('imgs').get(id_project=project_pk)
         data_project = data_project.dict()
+        #добавил размер проекта
         size_project = await Img.objects.filter(project=project_pk).sum('size_img')
         data_project['size_project'] = size_project
         return data_project
@@ -180,20 +187,20 @@ async def get_project(project_pk: int):
 
 
 #возврат координат проекта
-@photo_router.get("/coords_list/{project_pk}")
-async def get_list_coords(project_pk: int):
-
-    project_list = await Project.objects.filter(id_project=project_pk).all()
-
-    if project_list:
-
-        coords = await Img.objects.filter(project=project_pk).values()
-        coords_list = [eval(item['coords']) for item in coords]
-        sorted_coords_list = sorted(coords_list, key = lambda c: [c[1], c[0]])
-        return sorted_coords_list
-
-    else:
-        raise HTTPException(status_code=500, detail='Такого проекта нет')
+# @photo_router.get("/coords_list/{project_pk}")
+# async def get_list_coords(project_pk: int):
+#
+#     project_list = await Project.objects.filter(id_project=project_pk).all()
+#
+#     if project_list:
+#
+#         coords = await Img.objects.filter(project=project_pk).values()
+#         coords_list = [eval(item['coords']) for item in coords]
+#         sorted_coords_list = sorted(coords_list, key = lambda c: [c[1], c[0]])
+#         return sorted_coords_list
+#
+#     else:
+#         raise HTTPException(status_code=500, detail='Такого проекта нет')
 
 # возврат размера проекта
 # @photo_router.get("/size_project/{project_pk}")
@@ -205,6 +212,17 @@ async def get_list_coords(project_pk: int):
 #         return await Img.objects.filter(project=project_pk).sum('size_img')
 #     else:
 #         raise HTTPException(status_code=500, detail='Такого проекта нет')
+
+
+# @photo_router.get("/test/")
+# async def test():
+#
+#     img_lat_lon = Image.open(r'C:\cockroach\img\17uoEtuihi6Lsg4hdedT7PUhF4FNgBPD2F\nsk\21.jpeg')
+#
+#
+#     exif = {ExifTags.TAGS[k]: v for k, v in img_lat_lon._getexif().items() if k in ExifTags.TAGS}
+#     print(exif['DateTimeOriginal'])
+#     return 'ok'
 
 # размер всех проектов пользователя
 @photo_router.get("/sum_size_project/{user_pk}")
@@ -247,25 +265,6 @@ async def get_img(img_id: int,
         return FileResponse(full_path)
     except Exception as ex:
         raise HTTPException(status_code=500, detail=f'{ex}')
-
-
-
-# @photo_router.get("/img_response/{img_id}")
-# async def get_img(img_id: int ):
-#
-#     try:
-#
-#         img_data = await Img.objects.select_related(Img.project).get(id=img_id)
-#         type_img = img_data.type_img
-#         patch = img_data.project.path
-#
-#         full_path = f'{patch}/{img_id}.{type_img}'
-#
-#         return FileResponse(full_path)
-#
-#     except Exception as ex:
-#
-#         raise HTTPException(status_code=500, detail=f'{ex}')
 
 
 #удаление прокта и всех данных из ос

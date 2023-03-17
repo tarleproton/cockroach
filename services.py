@@ -12,7 +12,7 @@ def decimal_coords(coords, ref):
     return float(decimal_degrees)
 
 
-async def get_lat_lon(path: str,
+async def img_info(path: str,
                 img,
                 project_id: int):
     # получение данных координат
@@ -25,21 +25,22 @@ async def get_lat_lon(path: str,
                                  exif['GPSInfo'][1]),
                   decimal_coords(exif['GPSInfo'][4],
                                  exif['GPSInfo'][3])])
+        date_time = exif['DateTimeOriginal']
 
 
         img_in_bd = await Img.objects.filter(coords=lat_lon, project=project_id).all()
 
         if not img_in_bd:
 
-            return lat_lon
+            return [lat_lon, date_time]
         else:
             img_lat_lon.close()
             os.remove(f'{path}/{img_name}')
-            return 'Изображении с такими координатами уже существует'
+            return ['Изображении с такими координатами уже существует', None]
 
     except:
 
-        return None
+        return [None, None]
 
     finally:
         try:
@@ -65,15 +66,16 @@ def rename_img(img_type,
 async def save_img_data(project_id: int,
              lat_lon: str,
              img_type: str,
-             size_img:int):
+             size_img:int,
+             date_time:str):
 
-    info = Img(project=project_id, coords=lat_lon, type_img=img_type, size_img=size_img)
+    info = Img(project=project_id, coords=lat_lon, type_img=img_type, size_img=size_img, img_date=date_time)
     await Img.objects.create(**info.dict())
 
 
-async def working_with_image(project_id, lat_lon, img_type, size_img):
+async def working_with_image(project_id, lat_lon, img_type, size_img, date_time):
     # сохранение данных в БД
-    await save_img_data(project_id, lat_lon, img_type, size_img)
+    await save_img_data(project_id, lat_lon, img_type, size_img, date_time)
 
     # получение id изображения для переименования файла
     img_id = await Img.objects.get(project=project_id, coords=lat_lon)
