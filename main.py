@@ -3,6 +3,16 @@ from api import photo_router
 from db import engine, metadata, database
 from fastapi.middleware.cors import CORSMiddleware
 
+# import logging
+# level = logging.DEBUG
+# FORMAT = '%(asctime)s %(processName)s\%(name)-8s %(levelname)s: %(message)s'
+# logfile = 'C:\cockroach\my.log'
+# logging.basicConfig(format = FORMAT, level=level, filename = logfile )
+#
+# logger = logging.getLogger(__name__)
+# debug = logger.debug
+# print = logger.info
+
 origins = [
     "http://localhost",
     "http://localhost:8080",
@@ -18,7 +28,7 @@ def get_application() -> FastAPI:
 
 app = get_application()
 
-#metadata.create_all(engine) #создание БД
+metadata.create_all(engine) #создание БД
 app.state.database = database
 
 app.add_middleware(
