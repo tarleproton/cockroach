@@ -28,7 +28,7 @@ def get_application() -> FastAPI:
 
 app = get_application()
 
-metadata.create_all(engine) #создание БД
+#metadata.create_all(engine) #создание БД
 app.state.database = database
 
 app.add_middleware(
